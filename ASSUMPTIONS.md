@@ -483,7 +483,21 @@ rather than excluded, so a genuine mistake in them is still caught.
 test suites and a production build. It needs **no secrets**, which is a
 consequence of the testing design rather than a convenience: Tier 1 is pure,
 Tier 2 uses a fake driver, Tier 3 stubs its dependencies, and the frontend runs
-in happy-dom, so no tier touches a real database or network. The build step is
+in happy-dom, so no tier touches a real database or network.
+
+*Corrected after the first runs failed.* "No secrets" was true and also
+misleading, and the imprecision is what hid the bug. Several test files import
+the env module transitively, and that module validates configuration at load
+and exits when it is missing (§7). So the variables must be **present**, even
+though no test uses them to reach anything — CI supplies deliberately obvious
+placeholders. Until that was added, three test files reported "0 tests" and the
+suite silently shrank from 133 to 105 rather than failing loudly.
+
+This went unnoticed locally for the obvious reason: a developer machine has a
+`.env`, so the suite passes there. It is the same shape as the deploy-only bugs
+(#3 in the findings above) — a difference between the development environment
+and a clean one, invisible until something runs in the clean one. Which is the
+argument for having CI at all. The build step is
 included specifically to catch build-layout breakage — the class of bug that
 only appears in a compiled tree and would otherwise be discovered on the deploy
 after merge, which is exactly how the two deploy-only bugs were found.

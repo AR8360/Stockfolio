@@ -9,6 +9,22 @@ jobs:
   verify:
     runs-on: ubuntu-latest
 
+    # Placeholder values, not secrets, and deliberately obvious ones.
+    #
+    # No test connects to a database or signs anything a real system would
+    # trust. But three test files transitively import the env module, which
+    # validates configuration at load and exits the process when it is missing
+    # (§7) — so the variables have to be *present*, even though their values are
+    # never meaningfully used. JWT_SECRET does get used, to sign tokens that
+    # only this test run verifies, so it has to clear the 32-character minimum.
+    #
+    # Without this the three affected files report "0 tests" and the suite
+    # silently shrinks rather than failing loudly, which is how this went
+    # unnoticed locally: a developer machine has a .env, so it passes there.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_never_connected
+      JWT_SECRET: ci-placeholder-secret-not-used-outside-this-run
+
     steps:
       - uses: actions/checkout@v4
 

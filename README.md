@@ -73,7 +73,10 @@ period takes roughly 50 seconds to wake the process.
 The pipeline is **ESLint (type-aware) → typecheck → both test suites →
 production build**, run by `npm run verify` locally and by
 [CI](.github/workflows/ci.yml) on every push and pull request. It needs no
-secrets, because no test tier touches a real database or network.
+secrets — no test tier touches a real database or network — though it does
+supply obvious placeholder values for `DATABASE_URL` and `JWT_SECRET`, because
+the env module validates configuration at load and several test files import it
+transitively.
 
 Three tiers, no browser E2E ([ASSUMPTIONS.md #31](./ASSUMPTIONS.md)):
 
@@ -101,10 +104,6 @@ mutation — deliberately breaking the implementation to confirm the test fails.
 The dropdown regression test was written twice for this reason: the first
 version passed against the known-broken component, because a synthetic click
 completes faster than the race it was meant to catch.
-
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, both test suites and a
-production build on every push. It needs no secrets — no tier touches a real
-database or network.
 
 ## Notable implementation details
 
