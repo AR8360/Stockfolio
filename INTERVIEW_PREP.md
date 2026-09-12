@@ -19,68 +19,144 @@ When you sell shares, you need to know **what those particular shares cost you**
 so you can say how much you made. That sounds obvious until you have bought the
 same stock more than once at different prices.
 
-Say you bought 10 shares of a company at ₹100 in January, then 10 more at ₹120
-in February. In March you sell 15. Which 15 did you sell?
+Buy one share at ₹10. Buy another at ₹12. Now sell one for ₹15.
 
-There is no physical answer — shares are fungible, you did not sell *specific*
-pieces of paper. So it is an accounting convention, and you have to pick one:
+**Which one did you sell?**
 
-- **FIFO** ("first in, first out"): you sold the oldest ones first. So the 15
-  shares are the 10 from January plus 5 from February.
-- **Average cost**: you blend everything into one average price and sell at that.
+There is no physical answer — shares are fungible, you did not sell a specific
+piece of paper. So it is an accounting convention, and you have to pick one:
 
-These give **different answers**, and that is the whole point.
+- **FIFO** ("first in, first out"): you sold the oldest share, the ₹10 one.
+- **Average cost**: you blend them into one price of ₹11 and sell at that.
 
-| Method | Cost of the 15 sold | Sale proceeds | Realized gain |
-|---|---|---|---|
-| **FIFO** | (10 × 100) + (5 × 120) = **1,600** | 15 × 150 = 2,250 | **650** |
-| Average cost | 15 × 110 = **1,650** | 15 × 150 = 2,250 | 600 |
+These give **different answers**, and that difference is the whole point.
 
-A ₹50 difference on a tiny example. This project uses FIFO because that is what
-Indian brokerage and tax statements actually report — so the number this app
-shows matches the number the user's broker shows. Average cost would be simpler
-(one blended number per holding instead of a queue of lots), and it would be
-quietly wrong against their contract note.
+| | FIFO | Average cost |
+|---|---|---|
+| Cost of the share sold | ₹10 | ₹11 |
+| Realized gain on the sale | **+₹5** | +₹4 |
+| Cost basis of the share still held | **₹12** | ₹11 |
 
-There is a test in this repo that exists purely to stop someone "simplifying"
-this later. It asserts the answer is `650` **and explicitly asserts it is not
-`600`** — so if anyone swaps FIFO for average cost, that test names exactly what
-they did.
+This project uses FIFO, because that is what Indian brokerage and tax statements
+report — so the number this app shows matches the number the user's broker
+shows. Average cost is less code (one blended number per holding instead of a
+queue of lots) and quietly disagrees with their contract note.
 
-### What a "lot" is
+### The real sequence, run live against the deployed app
 
-A **lot** is one purchase, tracked separately: how many shares, and what they
-cost in total. Selling consumes lots from the oldest end, like a queue.
+Every figure below was produced by the deployed application and read back from
+its own API. Nothing here is illustrative.
+
+**Step 1 — buy 1 share at ₹10, then 1 more at ₹12.**
 
 ```
-BUY  10 @ 100  →  lots: [10 @ 100]
-BUY  10 @ 120  →  lots: [10 @ 100] [10 @ 120]
-SELL 15        →  consume all 10 from the first lot, then 5 from the second
-                  lots: [5 @ 120]  ← 5 shares left, and their cost is known
+qty 2 | avgCost 11 | costBasis 22 | realized 0
 ```
+
+Two shares, ₹22 invested. Note the average cost is ₹11 — that figure is real
+and useful to display, but it is *not* what the app uses to compute gains.
+
+**Step 2 — sell 1 share at ₹15.**
+
+```
+qty 1 | avgCost 12 | costBasis 12 | realized 5
+```
+
+This single line is the proof that the app is doing FIFO:
+
+- **Realized gain is ₹5**, not ₹4. It sold the ₹10 share, the oldest one.
+- **The remaining share's cost basis is ₹12**, not ₹11. The expensive share is
+  what is left.
+
+If this were average-cost accounting, both numbers would differ — ₹4 realized
+and ₹11 remaining. So a single two-buy, one-sell sequence is enough to
+demonstrate which method is in use, which makes it a good thing to show someone.
+
+**Step 3 — sell the remaining share, also at ₹15.**
+
+```
+holdings: []          ← position closed, gone from the table
+realized: 8           ← cumulative
+```
+
+The second sale consumed the ₹12 share, so it realized ₹3. Added to the first
+sale's ₹5, cumulative realized gain is **₹8**.
+
+The holdings table is now empty, but the ₹8 has not vanished — a fully-sold
+position leaves the holdings view and keeps contributing to realized gain.
+Otherwise selling everything would make your profit disappear from the screen,
+which would be alarming and wrong.
+
+**Step 4 — try to sell one more.**
+
+```json
+{
+  "error": {
+    "code": "INSUFFICIENT_HOLDINGS",
+    "message": "Only 0 shares were held on 2026-09-12; cannot sell 1",
+    "details": {
+      "reason": "NOT_HELD_ON_DATE",
+      "date": "2026-09-12",
+      "available": "0",
+      "requested": "1"
+    }
+  }
+}
+```
+
+Rejected, with the date and the actual available quantity, before anything is
+written.
+
+### Why *that* error message, and not the other one
+
+Worth knowing, because there are **two** different insufficient-holdings errors
+in this codebase and it is a fair question why this one fired.
+
+The other message — `Cannot sell 1 shares: 1 more than held on 2026-09-12` —
+comes from the FIFO calculator itself, when it replays the ledger and runs out
+of lots mid-sale. It is the last line of defence.
+
+The one that actually fires comes from a separate check that runs **first**,
+before the trade is inserted. That check exists for a subtler problem than
+"you have nothing left" — see below — and because it runs first, it produces the
+better message: it knows the balance on that specific date, so it can say
+*"only 0 shares were held"* rather than *"you are 1 short"*.
+
+Both are real. The calculator's version is what you would see if the earlier
+check were ever bypassed.
+
+### The subtler problem: selling backwards in time
+
+Trades are not necessarily entered in date order — the app lets you record a
+trade you forgot, or fix one you typed wrong. That creates a validation problem
+that a naive "do you have enough right now" check misses entirely:
+
+```
+Jan 10   BUY  100
+Mar 10   SELL 100     ← already recorded; balance is now 0
+Feb 10   SELL  50     ← being added now
+```
+
+On 10 February the user genuinely held 100 shares, so the sale looks fine on its
+own date. But the 10 March sale already disposed of all of them, so accepting
+this leaves the ledger at **−50 shares from March onward**.
+
+The check has to look *forward* from the sell's date, not just at it. It
+collapses the ledger into a net change per day, walks the days in order once,
+and requires that the running balance never dips below the quantity being sold
+at any point from that date on.
 
 ### Where fees go
 
-Real trades have brokerage and charges. The convention this project uses:
+The ₹10/₹12/₹15 sequence has no fees, so here is the convention on a larger
+trade that does — also run live:
 
-- **Buy fees are added to the lot's cost.** You paid them to acquire the shares,
-  so they are part of what the shares cost you.
+- **Buy fees are added to the lot's cost.** You paid them to acquire the shares.
 - **Sell fees are subtracted from proceeds.** You paid them to dispose of them.
 
-The effect is that realized gain reflects what the round trip *actually* cost,
-which is the figure a user reconciles against their contract note.
-
-When a lot is only partly sold, its fee goes with it proportionally. If a lot of
-10 shares cost 1,100 total (1,000 of shares + 100 of fees), selling 4 of them
-carries 440 of cost — not 400.
-
-### The real numbers, from live testing
-
-**Test A — TCS, entered through the real UI against the live database:**
-
 ```
-BUY  20 TCS @ 2,100, fees 35   on 2026-03-10
-SELL  8 TCS @ 2,400, fees 12   on 2026-06-15
+BUY  20 TCS @ 2,100, fees 35
+SELL  8 TCS @ 2,400, fees 12
 ```
 
 | Step | Working | Result |
@@ -95,39 +171,32 @@ SELL  8 TCS @ 2,400, fees 12   on 2026-06-15
 | **Unrealized gain** | 26,409.60 − 25,221 | **+1,188.60** |
 | **Total gain** | 2,374 + 1,188.60 | **+3,562.60** |
 
-Every one of those figures was displayed by the running app and checked by hand.
-
-**Test B — Reliance, from the API smoke test:**
-
-```
-BUY  10 RELIANCE @ 1,200, fees 20
-SELL  4 RELIANCE @ 1,300, fees  5
-```
-
-Proceeds `(4 × 1300) − 5 = 5,195`; cost of the 4 sold `12,020 × 4/10 = 4,808`;
-**realized +387**. Remaining 6 shares at basis **7,212**, average **1,202**,
-market value at the live price of 1,257.50 = **7,545**, **unrealized +333**,
-total **+720**.
+When a lot is only partly sold, its fee goes with it proportionally — which is
+why the cost of the 8 shares is 16,814 and not 16,800.
 
 ### Realized vs unrealized — why they are never merged
 
-- **Realized** gain is locked in. You sold, the money is real.
-- **Unrealized** gain is on paper. It moves every time the price moves, and you
-  have not actually got it.
+- **Realized** gain is locked in. You sold; the money is real.
+- **Unrealized** gain is on paper. It moves with the price, and you have not
+  actually got it.
 
-A single combined "gain" number is ambiguous, so this app always shows both
-separately plus a total. In test A that is `+2,374 realized`, `+1,188.60
-unrealized`, `+3,562.60 total` — three numbers, not one.
+A single combined "gain" number is ambiguous, so the app always shows both plus
+a total. In the ₹10/₹12/₹15 sequence, after the first sale the summary read:
 
-A position that has been **entirely sold** disappears from the holdings table
-but its realized gain still counts toward the total. Otherwise selling
-everything would make your profit vanish from the screen.
+```
+costBasis 12 | unrealizedGain 2188.8 | realizedGain 5 | totalGain 2193.8
+```
+
+The unrealized figure is large because the ledger says one share at a cost of
+₹12 while the live market price of the symbol used for the test was ₹2,200.80.
+That is the app being *correct* — it values what you hold at what it is worth
+today, regardless of the toy price the share was booked at.
 
 ### Why money is never a floating-point number
 
-In most languages, `0.1 + 0.2` does not equal `0.3`. It equals
-`0.30000000000000004`. That is not a bug in the language; it is how binary
-floating-point works, and it is fine for physics and fatal for money.
+In most languages `0.1 + 0.2` does not equal `0.3`; it equals
+`0.30000000000000004`. That is not a language bug — it is how binary
+floating-point works. It is fine for physics and fatal for money.
 
 This project never uses native numbers for money. Values are strings in the HTTP
 request, `NUMERIC(18,4)` in the database, and a decimal library in between.
