@@ -68,7 +68,12 @@ verifies a real database round trip, not just that the process is alive).
 Render's free tier sleeps after inactivity, so the first request after an idle
 period takes roughly 50 seconds to wake the process.
 
-## Testing
+## Testing and CI
+
+The pipeline is **ESLint (type-aware) → typecheck → both test suites →
+production build**, run by `npm run verify` locally and by
+[CI](.github/workflows/ci.yml) on every push and pull request. It needs no
+secrets, because no test tier touches a real database or network.
 
 Three tiers, no browser E2E ([ASSUMPTIONS.md #31](./ASSUMPTIONS.md)):
 
@@ -81,7 +86,10 @@ Three tiers, no browser E2E ([ASSUMPTIONS.md #31](./ASSUMPTIONS.md)):
 - **Tier 3 — integration.** Boots the real app with stub dependencies that
   should *never* be called, then sends only invalid requests. A stub being
   reached is itself a failure, which is what proves bad input cannot touch the
-  ledger or burn an upstream API call.
+  ledger or burn an upstream API call. It authenticates with a genuinely
+  signed token — the first version used a placeholder, so every request was
+  rejected at auth and the tests would have passed with every Zod schema in the
+  app deleted.
 
 Plus component tests for the search dropdown, which use `userEvent` rather than
 `fireEvent` so the real pointer sequence (mousedown → blur → mouseup → click)

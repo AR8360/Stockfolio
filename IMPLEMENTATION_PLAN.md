@@ -314,8 +314,55 @@ trade, not a blank table.
   price, future-dated trade) is rejected by validation before reaching either
   dependency. A stub method being called is itself a test failure.
 
+*Built, after initially being claimed in the README without existing.* Worth
+recording how the first version failed, because it passed: it authenticated
+with a placeholder string as the bearer token, so every request was rejected by
+`authenticate` with a 401 long before any validation ran. The assertions
+checked only that the stubs went untouched — which they did, for the wrong
+reason. The tests would have kept passing if every Zod schema in the app were
+deleted.
+
+The fix is to sign a *genuine* token with the real `JWT_SECRET`. Because
+`authenticate` is deliberately dumb — verify the JWT, attach the id, no
+database call (§4.2) — a real token gets requests past auth without touching a
+dependency, which makes validation the thing actually under test.
+
+**Frontend component tests** (added beyond the original plan): the search
+dropdown, covering the click-to-navigate path. These use `userEvent` rather
+than `fireEvent`, because only the former dispatches the real pointer sequence
+(mousedown → blur → mouseup → click) that the dropdown's dismissal logic
+interacts with. The first version of this test also passed against a
+known-broken component, for the same reason the original bug survived review:
+an automated click completes in about a millisecond, and the race window was
+150ms. It now holds the simulated press for 300ms, and was confirmed to fail
+when the fix is reverted.
+
 **Not built:** browser-level E2E (Playwright/Cypress) — low ROI for a
 single-developer project relative to the three tiers above.
+
+### 8.1 Static analysis and CI
+
+**ESLint, type-aware.** Adopted after the first deploy, once it became clear
+the repo contained `eslint-disable` comments and no linter to honour them.
+Type-aware rules rather than syntax-only, because `no-floating-promises`,
+`no-misused-promises` and the unsafe-`any` family need type information, and
+those are the failures that stay silent. It found floating promises in the
+header and login flow, and async handlers passed where React expects a void
+return, on its first run.
+
+**CI** (`.github/workflows/ci.yml`) runs lint, typecheck, both test suites and
+a production build on every push and pull request. It requires no secrets,
+which falls out of the testing design above: no tier touches a real database or
+network. The production build is part of CI deliberately — build-layout bugs
+are invisible in development and only appear in a compiled tree, which is how
+both deploy-only bugs in this project were found.
+
+**A note on what testing can and cannot catch here.** Three of the bugs in this
+project (the search-click race, the vacuous Tier 3 tests, and the first version
+of the dropdown regression test) share one root cause: an automated check that
+completes faster than the condition it is meant to observe. Where a test exists
+to catch a timing-dependent or negative condition, it is verified by
+deliberately breaking the implementation and confirming the test fails.
 
 ---
 

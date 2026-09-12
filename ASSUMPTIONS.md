@@ -372,6 +372,124 @@ administration task.
 
 ---
 
+## Bugs found by the code-review pass
+
+These four were found by a dedicated review of the whole implementation diff,
+after the app was already deployed and working. None was caught by the test
+suite at the time, which is the point of recording them: each one shows a
+category of mistake the existing tests could not see.
+
+**34. `PATCH` on a trade returned 500 where `POST` returned 400.**
+*What broke:* the whole-share rule (#7) is enforced by a Zod refinement on the
+create schema, a service check, and a database CHECK. The **update** schema had
+none of them. `updateTransactionSchema` cannot express the rule, because the
+exchange is not editable and so is absent from a PATCH body, and the rule is
+exchange-specific. A fractional quantity therefore passed validation, reached
+the database, tripped `transactions_whole_shares_on_indian_exchanges`, and
+surfaced as Postgres error 23514 — which the error middleware did not
+recognise, so it fell through to the generic 500 branch.
+
+*Why it mattered:* a user correcting their own typo got a server error, and it
+was logged at error level as a 5xx incident rather than as expected 4xx traffic.
+
+*How it was found:* reading the create and update schemas side by side during
+review and noticing the asymmetry, then confirming it against the running API
+rather than assuming.
+
+*Fix:* the service now checks whole shares against the *stored* exchange, which
+it has and the schema does not. Separately the error middleware maps Postgres
+constraint violations (23514 CHECK, 23503 foreign key, 23502 NOT NULL) to 400,
+so no constraint violation can ever surface as a 500 again. Unique violations
+(23505) are deliberately excluded — those carry per-table meaning and are
+already translated by the services that can say what they mean.
+
+*Verified:* `POST` and `PATCH` with `quantity: "1.5"` on an NSE trade both now
+return 400 with a field-level message, against the live database.
+
+**35. Concurrent cache callers bypassed stale-while-revalidate.**
+*What broke:* `TtlCache` coalesces concurrent loads for one key onto a single
+upstream call (#24). The caller that *joined* an in-flight load awaited the
+shared promise directly, outside the `try/catch` that implements the stale
+fallback (#16).
+
+*Why it mattered:* during an upstream outage the request that initiated the
+load was served the last good price marked stale and rendered normally, while a
+simultaneous request for the same symbol got a hard 502 — the same page
+behaving differently on two loads a millisecond apart, in exactly the situation
+the stale fallback exists to smooth over.
+
+*How it was found:* review, by following the two paths through the cache and
+noticing only one of them was wrapped in the failure handling.
+
+*Fix:* both paths now go through one shared `#settle` step, so the initiating
+caller and every coalesced caller get identical behaviour.
+
+*Verified:* by the existing cache tests covering coalescing and the stale
+fallback, which now exercise the shared path.
+
+**36. Dashboard gainers and losers overlapped on a short basket.**
+*What broke:* `gainers` took `slice(0, 5)` and `losers` took `slice(-5)` of the
+same sorted array. Those overlap whenever fewer than ten quotes resolve, and
+with five or fewer, *every* stock appears in both lists — so a stock up 5% is
+displayed as a top loser.
+
+*Why it mattered:* this is reachable in normal operation, not a hypothetical.
+`getQuotes` deliberately drops failed constituents rather than failing the
+basket (#16), so a degraded upstream renders a short list rather than an
+error — which is precisely when the display would be wrong.
+
+*How it was found:* review, then confirmed by simulating the ranking on a
+three-quote basket.
+
+*Fix:* the sorted list is split at its midpoint before each end is taken, so
+the two lists can never share an entry.
+
+*Verified:* live, against the real dashboard — 48 constituents sampled, zero
+overlap between the two lists.
+
+**37. A build artifact was committed.**
+*What broke:* `web/tsconfig.tsbuildinfo`, TypeScript's incremental-build cache,
+was tracked in git. It was swept in by a directory-wide `git add web` when the
+frontend was first committed.
+
+*Why it mattered:* it changes on every typecheck, so it shows as modified after
+any build and produces spurious diffs and merge conflicts; it also embeds
+absolute paths from the machine that generated it.
+
+*How it was found:* review of the diff's file list rather than its content.
+
+*Fix:* untracked, and `*.tsbuildinfo` added to `.gitignore`.
+
+---
+
+## Tooling adopted after the first deploy
+
+**38. ESLint, type-aware.** There were four `eslint-disable` comments in the
+repo and no ESLint installed, so they suppressed nothing — a detail a reviewer
+notices. Type-aware rules were chosen deliberately over a syntax-only config:
+`no-floating-promises`, `no-misused-promises` and the unsafe-`any` family all
+require type information, and those are the mistakes that produce a silently
+swallowed error or a wrong number rather than a crash.
+
+It found real problems on its first run: a floating `navigate()` in the header
+and in the login flow, where react-router v7 returns a promise whose rejection
+would have been silent; and `async` submit handlers passed straight to
+`onSubmit`, where React expects a void return, so a rejection escaping them
+would surface as an unhandled rejection rather than a handled error. Build-tool
+configs sit outside both tsconfig projects and are linted for syntax only
+rather than excluded, so a genuine mistake in them is still caught.
+
+**39. CI on every push.** `.github/workflows/ci.yml` runs lint, typecheck, both
+test suites and a production build. It needs **no secrets**, which is a
+consequence of the testing design rather than a convenience: Tier 1 is pure,
+Tier 2 uses a fake driver, Tier 3 stubs its dependencies, and the frontend runs
+in happy-dom, so no tier touches a real database or network. The build step is
+included specifically to catch build-layout breakage — the class of bug that
+only appears in a compiled tree and would otherwise be discovered on the deploy
+after merge, which is exactly how the two deploy-only bugs were found.
+
+---
+
 ## Known gaps — acknowledged, not accidental
 
 - **No idempotency-key cleanup job.** The `idempotency_keys(created_at)`
