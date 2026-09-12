@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import express, { type Express } from 'express';
@@ -16,6 +16,33 @@ import { YahooMarketDataProvider } from './providers/yahoo/YahooMarketDataProvid
 import type { MarketDataService } from './providers/types.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Locate the built frontend by walking up from this module.
+ *
+ * A fixed relative path does not work, because this file sits at a different
+ * depth depending on how it is run: `server/src/app.ts` under tsx, but
+ * `server/dist/src/app.js` after a build. The same `../../web/dist` that is
+ * correct in development resolves to `server/web/dist` in production — so the
+ * deployed process would serve the API correctly and return a JSON 404 for
+ * every page, which is exactly the failure that is invisible until deploy.
+ *
+ * Returns null when there is no build, which is the normal state when running
+ * the API alone against the Vite dev server.
+ */
+function findWebDist(): string | null {
+  let directory = here;
+
+  for (let depth = 0; depth < 6; depth += 1) {
+    const candidate = join(directory, 'web', 'dist');
+    if (existsSync(join(candidate, 'index.html'))) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+
+  return null;
+}
 
 /**
  * Builds the Express app (IMPLEMENTATION_PLAN.md §4, §9).
@@ -51,10 +78,10 @@ export function createApp(overrides: Partial<Services> = {}): Express {
   app.use(createRouter(services));
 
   // Serve the built frontend from the same process (ASSUMPTIONS.md #17).
-  // Guarded by existsSync so `npm run dev` on the API alone does not fail when
-  // the frontend has not been built.
-  const clientDist = resolve(here, '../../web/dist');
-  if (existsSync(clientDist)) {
+  // Guarded so `npm run dev` on the API alone does not fail when the frontend
+  // has not been built yet.
+  const clientDist = findWebDist();
+  if (clientDist !== null) {
     app.use(express.static(clientDist));
     // SPA fallback, registered after the API router so it cannot shadow a real
     // route: any non-API path returns index.html and lets the client router

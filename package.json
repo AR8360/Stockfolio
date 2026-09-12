@@ -4,14 +4,18 @@
   "version": "0.1.0",
   "description": "Stock market dashboard + FIFO portfolio tracker",
   "workspaces": [
-    "server"
+    "server",
+    "web"
   ],
   "scripts": {
     "db:init": "npm run db:init --workspace server",
-    "dev": "npm run dev --workspace server",
-    "build": "npm run build --workspace server",
+    "dev": "npm run dev --workspace server & npm run dev --workspace web",
+    "build": "npm run build --workspace web && npm run build --workspace server",
     "test": "npm run test --workspace server",
-    "typecheck": "npm run typecheck --workspace server"
+    "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace web",
+    "dev:api": "npm run dev --workspace server",
+    "dev:web": "npm run dev --workspace web",
+    "start": "npm run start --workspace server"
   },
   "engines": {
     "node": ">=20"
