@@ -11,8 +11,6 @@ search need no account; the portfolio tracker does.
 
 - [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) — architecture, stack, build order
 - [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) — every design decision and its trade-offs
-- [`INTERVIEW_PREP.md`](./INTERVIEW_PREP.md) — plain-language walkthrough of FIFO,
-  idempotency, locking, and every bug found while building this
 
 ## What it does
 

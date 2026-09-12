@@ -12,3 +12,6 @@ web/dist/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Personal prep notes — kept locally, not published
+INTERVIEW_PREP.md
