@@ -46,8 +46,10 @@ npm run dev:web         # Vite on :5173, proxying /api
 | `npm run db:init` | Create the schema. Idempotent. |
 | `npm run build` | Build frontend, then compile the server |
 | `npm start` | Run the built app (API + static frontend, one process) |
-| `npm test` | Vitest |
+| `npm test` | Vitest — 140 tests across both workspaces |
 | `npm run typecheck` | `tsc --noEmit` across both workspaces |
+| `npm run lint` | ESLint, type-aware |
+| `npm run verify` | lint + typecheck + test + build — what CI runs |
 
 ## Deploying
 
@@ -76,12 +78,25 @@ Three tiers, no browser E2E ([ASSUMPTIONS.md #31](./ASSUMPTIONS.md)):
 - **Tier 2 — service layer against a fake database** that dispatches on the SQL
   it is handed, so the real transaction, row-locking and idempotency paths are
   exercised rather than a mocked method call.
-- **Tier 3 — validation.** Bad input is rejected at the boundary before reaching
-  the database or the market data provider.
+- **Tier 3 — integration.** Boots the real app with stub dependencies that
+  should *never* be called, then sends only invalid requests. A stub being
+  reached is itself a failure, which is what proves bad input cannot touch the
+  ledger or burn an upstream API call.
+
+Plus component tests for the search dropdown, which use `userEvent` rather than
+`fireEvent` so the real pointer sequence (mousedown → blur → mouseup → click)
+is exercised.
 
 The FIFO tests are the highest-priority in the repo, because a bug there
 produces a wrong *number* rather than a crash. Several were verified by
 mutation — deliberately breaking the implementation to confirm the test fails.
+The dropdown regression test was written twice for this reason: the first
+version passed against the known-broken component, because a synthetic click
+completes faster than the race it was meant to catch.
+
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, both test suites and a
+production build on every push. It needs no secrets — no tier touches a real
+database or network.
 
 ## Notable implementation details
 

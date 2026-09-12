@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` rather than `npm install`: it installs exactly the lockfile
+      # and fails if package.json and the lock have drifted, which is the
+      # difference between CI proving the committed state works and proving
+      # something adjacent to it works.
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # Server tests need no database or network: Tier 1 is pure, Tier 2 uses a
+      # fake driver, and Tier 3 boots the app with stubs that must never be
+      # called. Frontend tests run in happy-dom. So CI needs no secrets.
+      - run: npm test
+
+      # Catches build-layout breakage — the class of bug that only appears in a
+      # compiled tree and would otherwise be found on the deploy after merge.
+      - run: npm run build
