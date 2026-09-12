@@ -3,8 +3,16 @@
 A stock market dashboard (today's movers + search) with a post-login
 portfolio tracker for logging trades and viewing FIFO-based gain/loss.
 
+**Live: https://stockfolio-r4ds.onrender.com**
+
+Hosted on a free tier that sleeps when idle, so the first request after a quiet
+period takes roughly 50 seconds to wake the process. The dashboard and stock
+search need no account; the portfolio tracker does.
+
 - [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) — architecture, stack, build order
 - [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) — every design decision and its trade-offs
+- [`INTERVIEW_PREP.md`](./INTERVIEW_PREP.md) — plain-language walkthrough of FIFO,
+  idempotency, locking, and every bug found while building this
 
 ## What it does
 

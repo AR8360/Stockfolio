@@ -149,30 +149,60 @@ at any point from that date on.
 ### Where fees go
 
 The ₹10/₹12/₹15 sequence has no fees, so here is the convention on a larger
-trade that does — also run live:
+trade — and conveniently, the same trade has been recorded both with and
+without fees, which shows exactly what they change.
 
 - **Buy fees are added to the lot's cost.** You paid them to acquire the shares.
 - **Sell fees are subtracted from proceeds.** You paid them to dispose of them.
 
+**This is what the demo account on the deployed app currently holds** — the
+same two trades, no fees:
+
 ```
-BUY  20 TCS @ 2,100, fees 35
-SELL  8 TCS @ 2,400, fees 12
+BUY  20 TCS @ 2,100
+SELL  8 TCS @ 2,400
 ```
 
 | Step | Working | Result |
 |---|---|---|
-| Lot cost | (20 × 2,100) + 35 | **42,035** |
-| Cost per share | 42,035 ÷ 20 | **2,101.75** |
-| Sale proceeds | (8 × 2,400) − 12 | **19,188** |
-| Cost of the 8 sold | 42,035 × 8/20 | **16,814** |
-| **Realized gain** | 19,188 − 16,814 | **+2,374** |
-| Remaining 12 shares' cost | 42,035 − 16,814 | **25,221** |
+| Lot cost | 20 × 2,100 | **42,000** |
+| Cost per share | 42,000 ÷ 20 | **2,100** |
+| Sale proceeds | 8 × 2,400 | **19,200** |
+| Cost of the 8 sold | 42,000 × 8/20 | **16,800** |
+| **Realized gain** | 19,200 − 16,800 | **+2,400** |
+| Remaining 12 shares' cost | 42,000 − 16,800 | **25,200** |
 | Market value @ 2,200.80 | 12 × 2,200.80 | **26,409.60** |
-| **Unrealized gain** | 26,409.60 − 25,221 | **+1,188.60** |
-| **Total gain** | 2,374 + 1,188.60 | **+3,562.60** |
+| **Unrealized gain** | 26,409.60 − 25,200 | **+1,209.60** |
+| **Total gain** | 2,400 + 1,209.60 | **+3,609.60** |
 
-When a lot is only partly sold, its fee goes with it proportionally — which is
-why the cost of the 8 shares is 16,814 and not 16,800.
+The identical trades recorded **with** fees of 35 on the buy and 12 on the
+sell — run earlier during testing — produce different figures throughout:
+
+| | No fees | With fees (35 buy, 12 sell) |
+|---|---|---|
+| Lot cost | 42,000 | **42,035** |
+| Cost per share | 2,100 | **2,101.75** |
+| Sale proceeds | 19,200 | **19,188** |
+| Cost of the 8 sold | 16,800 | **16,814** |
+| Realized gain | +2,400 | **+2,374** |
+| Remaining cost basis | 25,200 | **25,221** |
+| Unrealized gain | +1,209.60 | **+1,188.60** |
+| Total gain | +3,609.60 | **+3,562.60** |
+
+Two things are worth drawing out of that comparison.
+
+**The fee affects more than the trade it was charged on.** A ₹35 buy fee does
+not simply reduce the gain by ₹35. It is capitalized into the lot, so it raises
+the cost of every share in it — which then flows into the cost of the 8 sold
+(16,814 rather than 16,800) *and* into the basis of the 12 still held (25,221
+rather than 25,200). One fee, paid once, shows up in both the realized and the
+unrealized figure.
+
+**It is allocated proportionally, not charged to the first sale.** Only 8 of
+the 20 shares were sold, so only 8/20 of the ₹35 — ₹14 — went with them. The
+remaining ₹21 stays attached to the shares still held, and will be recovered
+whenever those are sold. Charging the whole fee to the first sale would
+understate that sale's gain and overstate every later one.
 
 ### Realized vs unrealized — why they are never merged
 
