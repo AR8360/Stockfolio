@@ -1,0 +1,102 @@
+{
+  "chart": {
+    "result": [
+      {
+        "meta": {
+          "currency": "INR",
+          "symbol": "RELIANCE.NS",
+          "exchangeName": "NSI",
+          "fullExchangeName": "NSE",
+          "instrumentType": "EQUITY",
+          "firstTradeDate": 820467900,
+          "regularMarketTime": 1789119900,
+          "hasPrePostMarketData": false,
+          "gmtoffset": 19800,
+          "timezone": "IST",
+          "exchangeTimezoneName": "Asia/Kolkata",
+          "regularMarketPrice": 1257.5,
+          "regularMarketChangePercent": -1.295,
+          "fulldayPrice": 1257.5,
+          "fulldayChange": -16.5,
+          "fulldayChangePercent": -1.295,
+          "fiftyTwoWeekHigh": 1611.8,
+          "fiftyTwoWeekLow": 1249.8,
+          "regularMarketDayHigh": 1267.4,
+          "regularMarketDayLow": 1253,
+          "regularMarketVolume": 8776602,
+          "longName": "Reliance Industries Limited",
+          "shortName": "RELIANCE INDUSTRIES LTD",
+          "chartPreviousClose": 1274,
+          "priceHint": 2,
+          "currentTradingPeriod": {
+            "pre": {
+              "timezone": "IST",
+              "start": 1789098300,
+              "end": 1789098300,
+              "gmtoffset": 19800
+            },
+            "regular": {
+              "timezone": "IST",
+              "start": 1789098300,
+              "end": 1789120800,
+              "gmtoffset": 19800
+            },
+            "post": {
+              "timezone": "IST",
+              "start": 1789120800,
+              "end": 1789120800,
+              "gmtoffset": 19800
+            }
+          },
+          "dataGranularity": "1d",
+          "range": "1d",
+          "validRanges": [
+            "1d",
+            "5d",
+            "1mo",
+            "3mo",
+            "6mo",
+            "1y",
+            "2y",
+            "5y",
+            "10y",
+            "ytd",
+            "max"
+          ]
+        },
+        "timestamp": [
+          1789098300
+        ],
+        "indicators": {
+          "quote": [
+            {
+              "low": [
+                1253
+              ],
+              "volume": [
+                8777736
+              ],
+              "open": [
+                1267
+              ],
+              "close": [
+                1257.5
+              ],
+              "high": [
+                1267.4000244140625
+              ]
+            }
+          ],
+          "adjclose": [
+            {
+              "adjclose": [
+                1257.5
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "error": null
+  }
+}
