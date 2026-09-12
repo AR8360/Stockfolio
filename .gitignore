@@ -9,3 +9,6 @@ coverage/
 
 # build output
 web/dist/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

@@ -26,7 +26,7 @@ const symbol = z
   .trim()
   .min(1)
   .max(30)
-  .regex(/^[A-Za-z0-9&.\-]+$/, 'Invalid symbol')
+  .regex(/^[A-Za-z0-9&.-]+$/, 'Invalid symbol')
   .transform((v) => v.toUpperCase());
 
 const exchange = z.enum(['NSE', 'BSE']);

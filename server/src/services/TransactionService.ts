@@ -175,6 +175,15 @@ export class TransactionService {
       const before = await findTransactionInPortfolio(tx, portfolio.id, transactionId);
       if (!before) throw notFound('Transaction not found');
 
+      // Whole-share rule, checked here rather than in the Zod schema.
+      //
+      // The route schema cannot do it: the exchange is not editable, so a
+      // PATCH body does not carry one, and the rule is exchange-specific
+      // (ASSUMPTIONS.md #7). Without this the value reaches the database, trips
+      // the CHECK constraint, and surfaces as a 500 for what is a user typo —
+      // while the identical value on POST returns a clean 400.
+      assertWholeShares(before.exchange, patch.quantity);
+
       const updated = await updateTransactionFields(tx, portfolio.id, transactionId, patch);
 
       // Re-read and replay the whole holding. An edit can invalidate trades it
@@ -256,6 +265,23 @@ function replayOrConflict(
   }
 
   return storedBody as TransactionDto;
+}
+
+/** Mirrors `transactions_whole_shares_on_indian_exchanges` and the create-path
+ *  Zod refinement, so all three enforce one rule rather than three subtly
+ *  different ones. */
+const WHOLE_SHARE_EXCHANGES = new Set(['NSE', 'BSE']);
+
+function assertWholeShares(exchange: string, quantity: string): void {
+  if (!WHOLE_SHARE_EXCHANGES.has(exchange)) return;
+  if (new Decimal(quantity).isInteger()) return;
+
+  throw new AppError({
+    status: 400,
+    code: ErrorCodes.VALIDATION_FAILED,
+    message: `${exchange} trades whole shares only`,
+    details: { quantity: [`${exchange} trades whole shares only`] },
+  });
 }
 
 function assertLedgerReplays(rows: readonly TransactionRow[]): void {

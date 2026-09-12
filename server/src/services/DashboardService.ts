@@ -52,11 +52,22 @@ export class DashboardService {
       null,
     );
 
+    // Split the sorted list at its midpoint before taking each end, so the two
+    // lists can never share an entry. Slicing head and tail independently
+    // overlaps whenever fewer than 2 * TOP_N quotes resolve — and with 5 or
+    // fewer, every stock appears in both, so a stock up 5% is listed as a top
+    // loser. That is reachable in practice, because getQuotes drops failed
+    // constituents rather than failing the basket, so a degraded upstream
+    // renders a short list rather than an error.
+    const midpoint = Math.floor(byChange.length / 2);
+    const risers = byChange.slice(0, midpoint);
+    const fallers = byChange.slice(midpoint);
+
     return {
-      gainers: byChange.slice(0, TOP_N).map(toDto),
+      gainers: risers.slice(0, TOP_N).map(toDto),
       // Taken from the tail and reversed so the biggest loser is first,
       // matching how gainers read.
-      losers: byChange.slice(-TOP_N).reverse().map(toDto),
+      losers: fallers.slice(-TOP_N).reverse().map(toDto),
       mostActive: byVolume.slice(0, TOP_N).map(toDto),
       sampled: quotes.length,
       asOf: asOf?.toISOString() ?? null,

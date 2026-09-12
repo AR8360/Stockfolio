@@ -102,6 +102,29 @@ function toEnvelope(error: unknown): { status: number; body: ErrorEnvelope } {
     };
   }
 
+  // A database constraint rejecting the write means the input violated a rule
+  // the schema documents — a client error, not a server fault. Reported as 400
+  // rather than 500 so it is not logged as an incident and does not page
+  // anyone.
+  //
+  // This is a backstop, not the primary defence: every such rule is also
+  // enforced at the Zod boundary or in a service, where the message can name
+  // the offending field. Reaching here means one of those was missed, so the
+  // constraint name is surfaced to make the gap findable rather than silent.
+  const constraint = postgresConstraintViolation(error);
+  if (constraint !== null) {
+    return {
+      status: 400,
+      body: {
+        error: {
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: 'That change violates a data rule for this record',
+          details: { constraint },
+        },
+      },
+    };
+  }
+
   // Deliberately generic. An unexpected error can carry a driver message, a
   // connection string, or a fragment of a query; none of that belongs in a
   // response body. The detail is in the log written above.
@@ -114,6 +137,23 @@ function toEnvelope(error: unknown): { status: number; body: ErrorEnvelope } {
       },
     },
   };
+}
+
+/** Postgres CHECK (23514), foreign key (23503) and NOT NULL (23502)
+ *  violations. Unique violations (23505) are deliberately excluded: those carry
+ *  real meaning per table and are already translated by the services that can
+ *  say what they mean (duplicate email, reused idempotency key). */
+const CONSTRAINT_VIOLATION_CODES = new Set(['23514', '23503', '23502']);
+
+function postgresConstraintViolation(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  if (typeof candidate.code !== 'string' || !CONSTRAINT_VIOLATION_CODES.has(candidate.code)) {
+    return null;
+  }
+
+  return typeof candidate.constraint === 'string' ? candidate.constraint : candidate.code;
 }
 
 function isBodyParserSyntaxError(error: unknown): boolean {

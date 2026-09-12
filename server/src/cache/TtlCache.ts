@@ -47,9 +47,15 @@ export class TtlCache {
       return { value: entry.value, stale: entry.stale };
     }
 
+    // A caller joining an in-flight load must go through the same failure
+    // handling as the one that started it. Awaiting the shared promise
+    // directly here used to bypass the stale-while-revalidate catch below, so
+    // during an upstream outage the initiating request rendered a stale price
+    // while a concurrent one got a hard error — the same page behaving
+    // differently on two simultaneous loads.
     const existing = this.#inFlight.get(key) as Promise<T> | undefined;
     if (existing) {
-      return { value: await existing, stale: false };
+      return this.#settle(key, existing, entry);
     }
 
     const promise = load()
@@ -65,18 +71,36 @@ export class TtlCache {
 
     this.#inFlight.set(key, promise);
 
+    return this.#settle(key, promise, entry);
+  }
+
+  /**
+   * Awaits a load and applies stale-while-revalidate on failure
+   * (ASSUMPTIONS.md #16): a failed refresh serves the last good value rather
+   * than propagating the error. This is what backs the "price may be delayed"
+   * state and is the main defence against the acknowledged instability of an
+   * unofficial data source.
+   *
+   * Shared by the initiating caller and by every caller that coalesced onto
+   * its promise, so all of them see the same behaviour.
+   */
+  async #settle<T>(
+    key: string,
+    promise: Promise<T>,
+    previous: Entry<T> | undefined,
+  ): Promise<Cached<T>> {
     try {
       return { value: await promise, stale: false };
     } catch (error) {
-      // Stale-while-revalidate (ASSUMPTIONS.md #16): a failed refresh serves
-      // the last good value rather than propagating the error. This is what
-      // backs the "price may be delayed" state, and it is the main defence
-      // against the acknowledged instability of an unofficial data source.
-      if (entry) {
+      if (previous) {
         // Extend the stale value's life briefly so a provider outage does not
         // turn into one upstream call per request.
-        this.#entries.set(key, { value: entry.value, expiresAt: Date.now() + 30_000, stale: true });
-        return { value: entry.value, stale: true };
+        this.#entries.set(key, {
+          value: previous.value,
+          expiresAt: Date.now() + 30_000,
+          stale: true,
+        });
+        return { value: previous.value, stale: true };
       }
       // Nothing cached to fall back to; the caller has to handle the failure.
       throw error;
