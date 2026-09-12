@@ -62,18 +62,49 @@ export function Search() {
         placeholder="Search NSE / BSE stocks…"
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setOpen(true)}
-        // A click on a result must land before the list closes, so closing is
-        // deferred past the blur.
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        // Safe to close immediately: pressing a result cannot blur this input,
+        // because the list below cancels the blur on mousedown.
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setOpen(false);
+        }}
       />
       {error && <div className="err" style={{ marginTop: 6 }}>{error}</div>}
       {open && query.trim() !== '' && (
-        <div className="results">
+        <div
+          className="results"
+          /**
+           * Cancel the blur that mousedown would otherwise cause.
+           *
+           * This is load-bearing, not a nicety. A click is mousedown → mouseup
+           * → click. Mousedown on a result blurs the input, and if that blur
+           * closes the list, the link unmounts before mouseup and the click
+           * lands on nothing — the dropdown shows correct results and
+           * selecting one silently does nothing.
+           *
+           * The previous version deferred closing by 150ms to leave a window
+           * for the click to arrive. That made the bug timing-dependent rather
+           * than fixing it: a click held longer than 150ms — ordinary for a
+           * deliberate press, and anything but rare — still missed. It also
+           * passed automated testing, where a synthetic click completes in
+           * about a millisecond.
+           *
+           * preventDefault here stops the input losing focus at all, so there
+           * is no window to miss and no timer to tune.
+           */
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {hits.length === 0 && !error ? (
             <div style={{ padding: '9px 12px' }} className="muted">No matches.</div>
           ) : (
             hits.map((hit) => (
-              <Link key={`${hit.exchange}:${hit.symbol}`} to={`/stocks/${hit.exchange}/${hit.symbol}`}>
+              <Link
+                key={`${hit.exchange}:${hit.symbol}`}
+                to={`/stocks/${hit.exchange}/${hit.symbol}`}
+                // Closed explicitly on selection, since the input keeps focus
+                // now and will not blur the list shut on its own.
+                onClick={() => setOpen(false)}
+              >
                 <strong>{hit.symbol}</strong> <span className="muted">· {hit.exchange} · {hit.name}</span>
               </Link>
             ))
