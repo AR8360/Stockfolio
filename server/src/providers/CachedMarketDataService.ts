@@ -60,6 +60,18 @@ export class CachedMarketDataService implements MarketDataService {
       `search:${query.toLowerCase()}`,
       5 * 60_000,
       () => this.#inner.search(query),
+      {
+        // Never cache an empty result. Yahoo's search intermittently returns a
+        // set containing only foreign listings for a query that normally has
+        // NSE/BSE ones — "infosys" coming back as NYSE INFY plus two European
+        // ADR lines and nothing Indian. The mapper correctly filters those out
+        // (they are not tradeable here), leaving [], and caching that made the
+        // stock appear not to exist for the next five minutes.
+        //
+        // Retrying costs one upstream call on a query that found nothing;
+        // caching it costs a search that visibly does not work.
+        shouldCache: (results) => results.length > 0,
+      },
     );
     return value;
   }

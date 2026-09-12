@@ -27,7 +27,20 @@ export class TtlCache {
    *  cache with a page loading 50 symbols at once. */
   readonly #inFlight = new Map<string, Promise<unknown>>();
 
-  async get<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<Cached<T>> {
+  /**
+   * `shouldCache` lets a caller refuse to store a particular result.
+   *
+   * Needed because not every successful response is worth remembering. An
+   * empty search result is far more often a transient upstream hiccup than a
+   * real answer, and caching it converts a one-second blip into a TTL-long
+   * outage for that exact query — the stock genuinely appears not to exist.
+   */
+  async get<T>(
+    key: string,
+    ttlMs: number,
+    load: () => Promise<T>,
+    options: { shouldCache?: (value: T) => boolean } = {},
+  ): Promise<Cached<T>> {
     const entry = this.#entries.get(key) as Entry<T> | undefined;
 
     if (entry && Date.now() < entry.expiresAt) {
@@ -41,7 +54,9 @@ export class TtlCache {
 
     const promise = load()
       .then((value) => {
-        this.#entries.set(key, { value, expiresAt: Date.now() + ttlMs, stale: false });
+        if (options.shouldCache?.(value) ?? true) {
+          this.#entries.set(key, { value, expiresAt: Date.now() + ttlMs, stale: false });
+        }
         return value;
       })
       .finally(() => {
