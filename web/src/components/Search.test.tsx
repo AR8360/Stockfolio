@@ -148,11 +148,15 @@ describe('Search dropdown', () => {
   });
 
   it('surfaces an API error instead of rendering an empty dropdown', async () => {
+    // A genuine upstream failure, not a rate limit — those are handled
+    // separately below, because they mean "wait" rather than "this broke".
     vi.mocked(fetch).mockResolvedValue({
       ok: false,
-      status: 429,
+      status: 502,
       json: () =>
-        Promise.resolve({ error: { code: 'RATE_LIMITED', message: 'Too many requests.' } }),
+        Promise.resolve({
+          error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Market data is unavailable.' },
+        }),
     } as Response);
 
     const user = userEvent.setup();
@@ -160,6 +164,29 @@ describe('Search dropdown', () => {
 
     await user.type(screen.getByRole('searchbox'), 'reliance');
 
-    expect(await screen.findByText(/Too many requests/)).toBeDefined();
+    expect(await screen.findByText(/Market data is unavailable/)).toBeDefined();
+  });
+
+  it('keeps showing results when rate limited, rather than blanking them', async () => {
+    // A 429 means "wait", not "nothing found". Clearing the list would tell the
+    // user their query had no matches, which is a different and wrong message.
+    const user = userEvent.setup();
+    renderSearch();
+
+    await user.type(screen.getByRole('searchbox'), 'reliance');
+    await screen.findByText('RELIANCE');
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: () =>
+        Promise.resolve({ error: { code: 'RATE_LIMITED', message: 'Too many requests.' } }),
+    } as Response);
+
+    await user.type(screen.getByRole('searchbox'), 'x');
+
+    expect(await screen.findByText(/pausing for a moment/)).toBeDefined();
+    // The previously-found result is still on screen.
+    expect(screen.getByText('RELIANCE')).toBeDefined();
   });
 });

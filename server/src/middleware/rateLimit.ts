@@ -81,7 +81,21 @@ function clientKey(request: Request): string {
 /** Shared limiter for public routes. */
 export const publicLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'public' });
 
-/** Tighter, dedicated limiter for search — the cheapest endpoint to call
- *  repeatedly and the most likely path to exhaust the upstream quota, since
- *  live-as-you-type naturally fires a request every few keystrokes. */
-export const searchLimiter = rateLimit({ windowMs: 60_000, max: 30, name: 'search' });
+/**
+ * Dedicated limiter for search.
+ *
+ * Originally set to 30/min on the reasoning that search is the cheapest
+ * endpoint to call repeatedly and the most likely path to exhaust the upstream
+ * quota. That reasoning was wrong, and it showed up in real use: a person
+ * exploring the dashboard — typing a query, backspacing, trying another — hit
+ * the limit and got "Too many requests" on a feature that was working fine.
+ *
+ * What it missed is that the search cache (§4.5) holds results for five
+ * minutes, so repeated and near-identical queries never reach the provider at
+ * all. The limiter was therefore throttling cache hits, which protects nothing
+ * upstream while making the app look broken.
+ *
+ * Now matched to the general public limit: still a real ceiling against
+ * scripted abuse, but comfortably above what a human can produce by typing.
+ */
+export const searchLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'search' });

@@ -44,6 +44,17 @@ export function Search() {
         .catch((e: unknown) => {
           if (e instanceof DOMException && e.name === 'AbortError') return;
           if (sequence !== latest.current) return;
+
+          // A rate limit is a "wait a moment", not a failure of the search. The
+          // previously-shown results are still valid, so they are deliberately
+          // left on screen rather than cleared — blanking the list implies the
+          // query found nothing, which is a different and wrong message.
+          if (e instanceof ApiError && e.status === 429) {
+            setError('Searching too quickly — pausing for a moment.');
+            return;
+          }
+
+          setHits([]);
           setError(e instanceof ApiError ? e.message : 'Search failed.');
         });
     }, 300);
