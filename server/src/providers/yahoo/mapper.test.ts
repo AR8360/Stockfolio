@@ -76,8 +76,8 @@ describe('mapChartResponseToQuote', () => {
   });
 
   it('returns a zero percent change instead of NaN on a zero previous close', () => {
-    const zeroed = structuredClone(chartReliance) as typeof chartReliance;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fixture surgery
+    const zeroed = structuredClone(chartReliance);
+    // Deliberate fixture surgery: force the divide-by-zero branch.
     (zeroed as any).chart.result[0].meta.chartPreviousClose = 0;
 
     const parsed = chartResponseSchema.parse(zeroed);

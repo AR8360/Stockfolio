@@ -110,7 +110,7 @@ export function TradeForm({
 
         {error && <div className="banner error">{error}</div>}
 
-        <form onSubmit={onSubmit} className="form-grid">
+        <form onSubmit={(e) => { void onSubmit(e); }} className="form-grid">
           <div className="field">
             <label htmlFor="symbol">Symbol</label>
             <input

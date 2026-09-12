@@ -33,7 +33,6 @@ class FakeDb implements Database {
   readonly executed: string[] = [];
   #next = 100;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stands in for pg's generic query
   async query(sql: string, params: readonly unknown[] = []): Promise<any> {
     this.executed.push(sql.replace(/\s+/g, ' ').trim());
 

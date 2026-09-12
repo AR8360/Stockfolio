@@ -33,8 +33,8 @@ class FakeDatabase implements Database {
     this.#options = options;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the fake stands in
-  // for pg's generically-typed query method; reproducing that generic signature
+  // Typed loosely on purpose: this stands in for pg's generically-typed query
+  // method, and reproducing that generic signature
   // faithfully here adds noise without adding safety to the assertions below.
   async query(sql: string, params: readonly unknown[] = []): Promise<any> {
     this.executed.push(sql);

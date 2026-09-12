@@ -26,7 +26,7 @@ export function LoginPage() {
     try {
       if (mode === 'login') await login(email, password);
       else await register(email, password, name);
-      navigate(destination, { replace: true });
+      void navigate(destination, { replace: true });
     } catch (e: unknown) {
       // The server reports an unknown email and a wrong password identically,
       // on purpose — so this shows whatever it said rather than guessing.
@@ -45,7 +45,7 @@ export function LoginPage() {
 
       {error && <div className="banner error">{error}</div>}
 
-      <form onSubmit={onSubmit} className="panel" style={{ display: 'grid', gap: 14 }}>
+      <form onSubmit={(e) => { void onSubmit(e); }} className="panel" style={{ display: 'grid', gap: 14 }}>
         {mode === 'register' && (
           <div className="field">
             <label htmlFor="name">Name</label>

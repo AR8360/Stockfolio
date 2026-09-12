@@ -22,7 +22,7 @@ export function App() {
         {user ? (
           <div className="user">
             <span className="muted">{user.name}</span>
-            <button className="link" onClick={() => { logout(); navigate('/'); }}>Log out</button>
+            <button className="link" onClick={() => { logout(); void navigate('/'); }}>Log out</button>
           </div>
         ) : (
           <Link className="btn small" to="/login">Log in</Link>
