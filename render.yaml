@@ -1,0 +1,31 @@
+# Render blueprint (IMPLEMENTATION_PLAN.md §9).
+#
+# One web service: a single Node process serving the API and the built
+# frontend (ASSUMPTIONS.md #17). The database is a separate free Neon instance
+# rather than a Render Postgres, because Render's free Postgres expires after
+# 30 days while Neon's free tier does not.
+services:
+  - type: web
+    name: stockfolio
+    runtime: node
+    plan: free
+    region: singapore
+
+    # db:init is idempotent (CREATE TABLE IF NOT EXISTS), so running it on
+    # every deploy is safe and means a fresh database needs no manual step.
+    buildCommand: npm ci && npm run build && npm run db:init
+    startCommand: npm start
+
+    # Verifies a real database round trip rather than just process liveness
+    # (ASSUMPTIONS.md #30), so a deploy that cannot reach Postgres is reported
+    # as unhealthy instead of being routed traffic.
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT; the app reads it and falls back to 3000 locally.
+      - key: DATABASE_URL
+        sync: false # set in the Render dashboard, never committed
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong value on first deploy
